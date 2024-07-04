@@ -1,0 +1,37 @@
+{
+  "name": "openaibot",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "keywords": [
+    "termux",
+    "whatsapp-openai",
+    "whatsapp-openai",
+    "whatsapp-bot",
+    "whatsapp-baileys",
+    "baileys-md",
+    "bot-wa",
+    "bot-md",
+    "whatsapp-multi-device"
+  ],
+  "author": "kalorize",
+  "license": "ISC",
+  "dependencies": {
+    "@hapi/boom": "^10.0.1",
+    "@whiskeysockets/baileys": "^6.7.5",
+    "awesome-phonenumber": "^6.9.0",
+    "axios": "^1.7.2",
+    "chalk": "^4.1.2",
+    "crypto": "^1.0.1",
+    "figlet": "^1.7.0",
+    "fs": "^0.0.1-security",
+    "lodash": "^4.17.21",
+    "openai": "^4.52.0",
+    "pino": "^9.2.0",
+    "qrcode-terminal": "^0.12.0",
+    "util": "^0.12.5"
+  }
+}
