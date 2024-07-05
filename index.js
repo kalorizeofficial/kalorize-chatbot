@@ -4,6 +4,8 @@ const fs = require("fs");
 
 startHisoka();
 
+
+
 let file = require.resolve(__filename);
 fs.watchFile(file, () => {
     fs.unwatchFile(file);

@@ -1,4 +1,3 @@
-const sessionName = "kalorize";
 
 const {
     default: makeWaSocket,
@@ -7,6 +6,8 @@ const {
     DisconnectReason,
     Browsers,
     jidDecode,
+    PhoneNumber,
+    fetchLatestWaWebVersion,
 } = require("@whiskeysockets/baileys");
 const pino = require("pino");
 const figlet = require("figlet");
@@ -15,6 +16,7 @@ const { getAuthState } = require("../config/auth");
 const { handleMessage } = require("../controllers/messageHandler");
 const { color } = require("../helpers/color");
 const { setupErrorHandler } = require("../utils/errorHandler");
+const { sendMenuButton } = require("../helpers/sendMenuButton");
 const _ = require("lodash");
 const smsg = require("../helpers/smsg");
 
@@ -24,25 +26,25 @@ const store = makeInMemoryStore({
 
 async function startHisoka() {
     const { state, saveCreds } = await getAuthState();
-    const { version, isLatest } = await fetchLatestBaileysVersion();
+    const { version, isLatest } = await fetchLatestWaWebVersion().catch(() => fetchLatestBaileysVersion());
 
     console.log(`using WA v${version.join(".")}, isLatest: ${isLatest}`);
     console.log(
         color(
-            figlet.textSync("Wa-OpenAI", {
+            figlet.textSync("Kalorize ChatBot", {
                 font: "Standard",
                 horizontalLayout: "default",
-                vertivalLayout: "default",
+                verticalLayout: "default", // Fix typo in verticalLayout
                 whitespaceBreak: false,
             }),
-            "green"
+            "orange"
         )
     );
 
     const client = makeWaSocket({
         logger: pino({ level: "silent" }),
         printQRInTerminal: true,
-        browser: Browsers.macOS("Desktop"),
+        browser: Browsers.windows("Desktop"),
         auth: state,
     });
 
@@ -154,9 +156,8 @@ async function startHisoka() {
             const botNumber = await client.decodeJid(client.user.id);
             console.log(color("Bot success connected to server", "green"));
             console.log(color("Type /menu to see menu"));
-            client.sendMessage(botNumber, {
-                text: `Bot started!\n\nKALORIZE NIH BOS SENGGOL DONG !!!`,
-            });
+            // add button menu
+            await sendMenuButton(client, botNumber);
         }
     });
 
@@ -170,7 +171,7 @@ async function startHisoka() {
             : /^data:.*?\/.*?;base64,/i.test(path)
                 ? Buffer.from(path.split`,`[1], "base64")
                 : /^https?:\/\//.test(path)
-                    ? await getBuffer(path)
+                    ? await await getBuffer(path)
                     : fs.existsSync(path)
                         ? fs.readFileSync(path)
                         : Buffer.alloc(0);
