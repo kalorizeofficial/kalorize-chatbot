@@ -2,6 +2,10 @@ const { getRecommendationFood } = require('../services/recommService');
 const { sendMenu } = require('../helpers/menu');
 const { uploadCsv } = require('./uploadCsvService');
 const { downloadCsvTemplate } = require('./downloadCsvTemplateService');
+const fs = require('fs');
+const chalk = require('chalk');
+const util = require('util');
+
 
 const kalorize = async (client, m, chatUpdate, id) => {
     try {
@@ -78,6 +82,7 @@ const kalorize = async (client, m, chatUpdate, id) => {
             switch (id) {
                 case '1': {
                     await getRecommendationFood(client, m, chatUpdate, id);
+                    await sendMenu(client, m.key.remoteJid);
                     break;
                 }
                 case '2': {
@@ -103,6 +108,8 @@ const kalorize = async (client, m, chatUpdate, id) => {
                             );
                         }
                     }
+                    await sendMenu(client, m.key.remoteJid);
+
                     break;
                 }
                 case '3': {
@@ -128,6 +135,8 @@ const kalorize = async (client, m, chatUpdate, id) => {
                             );
                         }
                     }
+                    await sendMenu(client, m.key.remoteJid);
+
                     break;
                 }
 
