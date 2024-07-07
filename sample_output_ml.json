@@ -1,0 +1,52 @@
+{
+    "recommendations": {
+        "menu": [
+            "Nasi ayam sayur asem",
+            "Nasi ayam goreng dan telur sambal",
+            "Soto ayam dan nasi",
+            "Ayam bakar dan nasi"
+        ]
+    },
+    "nutrition": {
+        "menu": [
+            {
+                "name": "Nasi ayam sayur asem",
+                "calories": 500,
+                "protein": 20,
+                "fat": 10,
+                "carbohydrate": 70,
+                "etc": [
+                    "Vitamin A: 10mg",
+                    "Vitamin C: 20mg"
+                ]
+            },
+            {
+                "name": "Nasi ayam goreng dan telur sambal",
+                "calories": 600,
+                "protein": 25,
+                "fat": 15,
+                "carbohydrate": 80,
+                "etc": [
+                    "Zat besi: 5mg",
+                    "Kalsium: 100mg"
+                ]
+            },
+            {
+                "name": "Soto ayam dan nasi",
+                "calories": 550,
+                "protein": 22,
+                "fat": 12,
+                "carbohydrate": 75,
+                "etc": [
+                    "Magnesium: 15mg",
+                    "Kalium: 200mg"
+                ]
+            }
+        ]
+    },
+    "requested_by": "6285770327304@s.whatsapp.net",
+    "bot_jid": "6285161504205@s.whatsapp.net",
+    "created_at": "2021-10-06T15:00:00Z",
+    "dataset_version": "2021-10-06",
+    "language": "id"
+}

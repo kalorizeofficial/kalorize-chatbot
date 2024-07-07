@@ -28,6 +28,8 @@
     "crypto": "^1.0.1",
     "figlet": "^1.7.0",
     "fs": "^0.0.1-security",
+    "jspdf": "^2.5.1",
+    "jspdf-autotable": "^3.8.2",
     "lodash": "^4.17.21",
     "nodemon": "^3.1.4",
     "openai": "^4.52.0",
