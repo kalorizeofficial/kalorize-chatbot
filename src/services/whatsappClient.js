@@ -1,5 +1,4 @@
-// whatsappClient.js
-const { default: makeWaSocket, fetchLatestBaileysVersion, makeInMemoryStore, Browsers, jidDecode, PhoneNumber, fetchLatestWaWebVersion } = require("@whiskeysockets/baileys");
+const { default: makeWaSocket, fetchLatestBaileysVersion, makeInMemoryStore, Browsers, jidDecode, PhoneNumber, fetchLatestWaWebVersion, DisconnectReason } = require("@whiskeysockets/baileys");
 const pino = require("pino");
 const figlet = require("figlet");
 const { Boom } = require("@hapi/boom");
@@ -77,12 +76,11 @@ async function startHisoka() {
         const { connection, lastDisconnect } = update;
         if (connection === "close") {
             let reason = new Boom(lastDisconnect?.error)?.output.statusCode;
-            handleConnectionClose(client, reason, startHisoka);
+            await handleConnectionClose(client, reason, startHisoka);  // Corrected function call
         } else if (connection === "open") {
             handleConnectionOpen(client);
         }
     });
-
     client.ev.on("creds.update", saveCreds);
 
     client.sendImage = async (jid, path, caption = "", quoted = "", options) => {

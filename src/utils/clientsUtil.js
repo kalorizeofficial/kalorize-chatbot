@@ -1,9 +1,10 @@
-// clientUtils.js
+// clientsUtil.js
 const { DisconnectReason } = require("@whiskeysockets/baileys");
-const { sendMenu } = require("../helpers/menu");
-const { color } = require("../helpers/color");
 
-async function  handleConnectionClose(reason, startHisoka) {
+// Your existing code
+
+
+async function handleConnectionClose(client, reason, startHisoka) {
     switch (reason) {
         case DisconnectReason.badSession:
             console.log(`Bad Session File, Please Delete Session and Scan Again`);
@@ -37,11 +38,9 @@ async function  handleConnectionClose(reason, startHisoka) {
     }
 }
 
-async function handleConnectionOpen(client) {
-    const botNumber = await client.decodeJid(client.user.id);
-    console.log(color("Bot success connected to server", "green"));
-    console.log(color("Type /menu to see menu"));
-    await sendMenu(client, botNumber); // Memanggil sendMenu saat koneksi terbuka
+function handleConnectionOpen(client) {
+    console.log("Connection opened successfully!");
+    // Lakukan inisialisasi tambahan atau tindakan lain yang diperlukan saat koneksi terbuka
 }
 
 module.exports = { handleConnectionClose, handleConnectionOpen };

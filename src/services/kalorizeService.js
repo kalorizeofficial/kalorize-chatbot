@@ -1,34 +1,34 @@
 const { getRecommendationFood } = require('../services/recommService');
 const { sendMenu } = require('../helpers/menu');
-const { uploadCsv } = require('./uploadCsvService');
+const { uploadXlsx } = require('./uploadXlsxService');
 const { downloadCsvTemplate } = require('./downloadCsvTemplateService');
 const fs = require('fs');
 const chalk = require('chalk');
 const util = require('util');
 
-
 const kalorize = async (client, m, chatUpdate, id) => {
+    // console.log("kalorize function called");
     try {
         var body =
             m.mtype === 'conversation'
                 ? m.message.conversation
                 : m.mtype == 'imageMessage'
-                ? m.message.imageMessage.caption
-                : m.mtype == 'videoMessage'
-                ? m.message.videoMessage.caption
-                : m.mtype == 'extendedTextMessage'
-                ? m.message.extendedTextMessage.text
-                : m.mtype == 'buttonsResponseMessage'
-                ? m.message.buttonsResponseMessage.selectedButtonId
-                : m.mtype == 'listResponseMessage'
-                ? m.message.listResponseMessage.singleSelectReply.selectedRowId
-                : m.mtype == 'templateButtonReplyMessage'
-                ? m.message.templateButtonReplyMessage.selectedId
-                : m.mtype === 'messageContextInfo'
-                ? m.message.buttonsResponseMessage?.selectedButtonId ||
-                  m.message.listResponseMessage?.singleSelectReply.selectedRowId ||
-                  m.text
-                : '';
+                    ? m.message.imageMessage.caption
+                    : m.mtype == 'videoMessage'
+                        ? m.message.videoMessage.caption
+                        : m.mtype == 'extendedTextMessage'
+                            ? m.message.extendedTextMessage.text
+                            : m.mtype == 'buttonsResponseMessage'
+                                ? m.message.buttonsResponseMessage.selectedButtonId
+                                : m.mtype == 'listResponseMessage'
+                                    ? m.message.listResponseMessage.singleSelectReply.selectedRowId
+                                    : m.mtype == 'templateButtonReplyMessage'
+                                        ? m.message.templateButtonReplyMessage.selectedId
+                                        : m.mtype === 'messageContextInfo'
+                                            ? m.message.buttonsResponseMessage?.selectedButtonId ||
+                                            m.message.listResponseMessage?.singleSelectReply.selectedRowId ||
+                                            m.text
+                                            : '';
         if (m.mtype === 'viewOnceMessageV2') return;
         var budy = typeof m.text == 'string' ? m.text : '';
         var prefix = /^[\\/!#.]/gi.test(body) ? body.match(/^[\\/!#.]/gi) : '/';
@@ -52,7 +52,7 @@ const kalorize = async (client, m, chatUpdate, id) => {
         };
 
         // Group
-        const groupMetadata = m.isGroup ? await client.groupMetadata(m.chat).catch((e) => {}) : '';
+        const groupMetadata = m.isGroup ? await client.groupMetadata(m.chat).catch((e) => { }) : '';
         const groupName = m.isGroup ? groupMetadata.subject : '';
 
         // Push Message To Console
@@ -86,8 +86,8 @@ const kalorize = async (client, m, chatUpdate, id) => {
                     break;
                 }
                 case '2': {
-                    client.sendMessage(m.chat, 'Anda memilih Upload Data CSV.');
-                    await uploadCsv(client, m, chatUpdate, id);
+                    client.sendMessage(m.chat, 'Anda memilih Upload Data XLSX.');
+                    await uploadXlsx(client, m, chatUpdate, id);
                     if (isCmd2 && budy.toLowerCase() != undefined) {
                         if (m.chat.endsWith('broadcast')) return;
                         if (m.isBaileys) return;
@@ -113,7 +113,7 @@ const kalorize = async (client, m, chatUpdate, id) => {
                     break;
                 }
                 case '3': {
-                    client.sendMessage(m.chat, 'Anda memilih Minta data template CSV.');
+                    client.sendMessage(m.chat, 'Anda memilih Minta data template XLSX.');
                     await downloadCsvTemplate(client, m, chatUpdate, id);
                     if (isCmd2 && budy.toLowerCase() != undefined) {
                         if (m.chat.endsWith('broadcast')) return;
@@ -157,7 +157,9 @@ module.exports = kalorize;
 let file = require.resolve(__filename);
 fs.watchFile(file, () => {
     fs.unwatchFile(file);
-    console.log(chalk.redBright(`Update ${__filename}`));
+    console.log(chalk.redBright(`Update ${__filename}`)); // Log untuk memastikan file dipantau
     delete require.cache[file];
+    console.log(`Clearing cache for ${__filename}`); // Log untuk memastikan cache dihapus
     require(file);
 });
+
