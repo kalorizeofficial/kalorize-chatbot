@@ -1,3 +1,4 @@
 node_modules
-kalorize
-key.json
+.vscode
+Kalorize
+.env
