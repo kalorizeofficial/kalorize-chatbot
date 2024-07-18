@@ -1,99 +1,124 @@
-const { proto, getContentType, jidDecode } = require("@whiskeysockets/baileys");
+const { proto, getContentType } = require('@whiskeysockets/baileys');
 
-function smsg(conn, m, store) {
-    if (!m) return m;
+/**
+ * Simplifies a message object and adds utility functions.
+ * @param {Object} client - The WhatsApp client instance.
+ * @param {Object} msg - The message object to simplify.
+ * @param {Object} store - The store object for message storage.
+ * @returns {Object} The simplified message object.
+ */
+function smsg(client, msg, store) {
+    if (!msg) return msg;
     let M = proto.WebMessageInfo;
-    if (m.key) {
-        m.id = m.key.id;
-        m.isBaileys = m.id.startsWith("BAE5") && m.id.length === 16;
-        m.chat = m.key.remoteJid;
-        m.fromMe = m.key.fromMe;
-        m.isGroup = m.chat.endsWith("@g.us");
-        m.sender = conn.decodeJid((m.fromMe && conn.user.id) || m.participant || m.key.participant || m.chat || "");
-        if (m.isGroup) m.participant = conn.decodeJid(m.key.participant) || "";
+
+    // Add message properties
+    if (msg.key) {
+        msg.id = msg.key.id;
+        msg.isBaileys = msg.id.startsWith("BAE5") && msg.id.length === 16;
+        msg.chat = msg.key.remoteJid;
+        msg.fromMe = msg.key.fromMe;
+        msg.isGroup = msg.chat.endsWith("@g.us");
+        msg.sender = client.decodeJid((msg.fromMe && client.user.id) || msg.participant || msg.key.participant || msg.chat || "");
+        if (msg.isGroup) msg.participant = client.decodeJid(msg.key.participant) || "";
     }
-    if (m.message) {
-        m.mtype = getContentType(m.message);
-        m.msg = m.mtype == "viewOnceMessage" ? m.message[m.mtype].message[getContentType(m.message[m.mtype].message)] : m.message[m.mtype];
-        m.body =
-            m.message.conversation ||
-            m.msg.caption ||
-            m.msg.text ||
-            (m.mtype == "viewOnceMessage" && m.msg.caption) ||
-            m.text;
-        let quoted = (m.quoted = m.msg.contextInfo ? m.msg.contextInfo.quotedMessage : null);
-        m.mentionedJid = m.msg.contextInfo ? m.msg.contextInfo.mentionedJid : [];
-        if (m.quoted) {
+
+    // Add message content properties
+    if (msg.message) {
+        msg.mtype = getContentType(msg.message);
+        msg.msg = msg.mtype == "viewOnceMessage" ? msg.message[msg.mtype].message[getContentType(msg.message[msg.mtype].message)] : msg.message[msg.mtype];
+        msg.body = msg.message.conversation || msg.msg.caption || msg.msg.text || (msg.mtype == "viewOnceMessage" && msg.msg.caption) || msg.text;
+        let quoted = (msg.quoted = msg.msg.contextInfo ? msg.msg.contextInfo.quotedMessage : null);
+        msg.mentionedJid = msg.msg.contextInfo ? msg.msg.contextInfo.mentionedJid : [];
+
+        // Add quoted message properties
+        if (msg.quoted) {
             let type = getContentType(quoted);
-            m.quoted = m.quoted[type];
+            msg.quoted = msg.quoted[type];
             if (["productMessage"].includes(type)) {
-                type = getContentType(m.quoted);
-                m.quoted = m.quoted[type];
+                type = getContentType(msg.quoted);
+                msg.quoted = msg.quoted[type];
             }
-            if (typeof m.quoted === "string")
-                m.quoted = {
-                    text: m.quoted,
-                };
-            m.quoted.mtype = type;
-            m.quoted.id = m.msg.contextInfo.stanzaId;
-            m.quoted.chat = m.msg.contextInfo.remoteJid || m.chat;
-            m.quoted.isBaileys = m.quoted.id ? m.quoted.id.startsWith("BAE5") && m.quoted.id.length === 16 : false;
-            m.quoted.sender = conn.decodeJid(m.msg.contextInfo.participant);
-            m.quoted.fromMe = m.quoted.sender === conn.decodeJid(conn.user.id);
-            m.quoted.text = m.quoted.text || m.quoted.caption || m.quoted.conversation || m.quoted.contentText || m.quoted.selectedDisplayText || m.quoted.title || "";
-            m.quoted.mentionedJid = m.msg.contextInfo ? m.msg.contextInfo.mentionedJid : [];
-            m.getQuotedObj = m.getQuotedMessage = async () => {
-                if (!m.quoted.id) return false;
-                let q = await store.loadMessage(m.chat, m.quoted.id, conn);
-                return exports.smsg(conn, q, store);
+            if (typeof msg.quoted === "string") msg.quoted = { text: msg.quoted };
+            msg.quoted.mtype = type;
+            msg.quoted.id = msg.msg.contextInfo.stanzaId;
+            msg.quoted.chat = msg.msg.contextInfo.remoteJid || msg.chat;
+            msg.quoted.isBaileys = msg.quoted.id ? msg.quoted.id.startsWith("BAE5") && msg.quoted.id.length === 16 : false;
+            msg.quoted.sender = client.decodeJid(msg.msg.contextInfo.participant);
+            msg.quoted.fromMe = msg.quoted.sender === client.decodeJid(client.user.id);
+            msg.quoted.text = msg.quoted.text || msg.quoted.caption || msg.quoted.conversation || msg.quoted.contentText || msg.quoted.selectedDisplayText || msg.quoted.title || "";
+            msg.quoted.mentionedJid = msg.msg.contextInfo ? msg.msg.contextInfo.mentionedJid : [];
+
+            /**
+             * Gets the quoted message object.
+             * @returns {Promise<Object>} The quoted message object.
+             */
+            msg.getQuotedObj = msg.getQuotedMessage = async () => {
+                if (!msg.quoted.id) return false;
+                let q = await store.loadMessage(msg.chat, msg.quoted.id, client);
+                return exports.smsg(client, q, store);
             };
-            let vM = (m.quoted.fakeObj = M.fromObject({
+
+            let vM = (msg.quoted.fakeObj = M.fromObject({
                 key: {
-                    remoteJid: m.quoted.chat,
-                    fromMe: m.quoted.fromMe,
-                    id: m.quoted.id,
+                    remoteJid: msg.quoted.chat,
+                    fromMe: msg.quoted.fromMe,
+                    id: msg.quoted.id,
                 },
                 message: quoted,
-                ...(m.isGroup ? { participant: m.quoted.sender } : {}),
+                ...(msg.isGroup ? { participant: msg.quoted.sender } : {}),
             }));
 
             /**
-             *
-             * @returns
+             * Deletes the quoted message.
+             * @returns {Promise<Object>} The result of deleting the quoted message.
              */
-            m.quoted.delete = () => conn.sendMessage(m.quoted.chat, { delete: vM.key });
+            msg.quoted.delete = () => client.sendMessage(msg.quoted.chat, { delete: vM.key });
 
             /**
-             *
-             * @param {*} jid
-             * @param {*} forceForward
-             * @param {*} options
-             * @returns
+             * Copies and forwards the quoted message to another chat.
+             * @param {string} jid - The destination chat ID.
+             * @param {boolean} forceForward - Whether to force forward the message.
+             * @param {Object} options - Additional options for forwarding the message.
+             * @returns {Promise<Object>} The result of copying and forwarding the quoted message.
              */
-            m.quoted.copyNForward = (jid, forceForward = false, options = {}) => conn.copyNForward(jid, vM, forceForward, options);
+            msg.quoted.copyNForward = (jid, forceForward = false, options = {}) => client.copyNForward(jid, vM, forceForward, options);
 
             /**
-             *
-             * @returns
+             * Downloads the media from the quoted message.
+             * @returns {Promise<Buffer>} The downloaded media buffer.
              */
-            m.quoted.download = () => conn.downloadMediaMessage(m.quoted);
+            msg.quoted.download = () => client.downloadMediaMessage(msg.quoted);
         }
     }
-    if (m.msg.url) m.download = () => conn.downloadMediaMessage(m.msg);
-    m.text = m.msg.text || m.msg.caption || m.message.conversation || m.msg.contentText || m.msg.selectedDisplayText || m.msg.title || "";
-    /**
-     * Reply to this message
-     * @param {String|Object} text
-     * @param {String|false} chatId
-     * @param {Object} options
-     */
-    m.reply = (text, chatId = m.chat, options = {}) => (Buffer.isBuffer(text) ? conn.sendMedia(chatId, text, "file", "", m, { ...options }) : conn.sendText(chatId, text, m, { ...options }));
-    /**
-     * Copy this message
-     */
-    m.copy = () => exports.smsg(conn, M.fromObject(M.toObject(m)));
 
-    return m;
+    /**
+     * Downloads the media from the message.
+     * @returns {Promise<Buffer>} The downloaded media buffer.
+     */
+    if (msg.msg.url) msg.download = () => client.downloadMediaMessage(msg.msg);
+
+    msg.text = msg.msg.text || msg.msg.caption || msg.message.conversation || msg.msg.contentText || msg.msg.selectedDisplayText || msg.msg.title || "";
+
+    /**
+     * Replies to the message.
+     * @param {string|Object} text - The content of the reply message.
+     * @param {string} chatId - The ID of the chat to send the reply message in.
+     * @param {Object} options - Additional options for sending the reply message.
+     * @returns {Promise<Object>} The result of sending the reply message.
+     */
+    msg.reply = (text, chatId = msg.chat, options = {}) => (
+        Buffer.isBuffer(text) ? 
+        client.sendMedia(chatId, text, "file", "", msg, { ...options }) : 
+        client.sendText(chatId, text, msg, { ...options })
+    );
+
+    /**
+     * Creates a copy of the message.
+     * @returns {Object} The copied message object.
+     */
+    msg.copy = () => exports.smsg(client, M.fromObject(M.toObject(msg)));
+
+    return msg;
 }
 
-module.exports = smsg;
+module.exports = { smsg };

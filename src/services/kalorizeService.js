@@ -1,163 +1,182 @@
-const { getRecommendationFood } = require('../services/recommService');
-const { sendMenu } = require('../helpers/menu');
-const { uploadCsv } = require('./uploadCsvService');
-const { downloadCsvTemplate } = require('./downloadCsvTemplateService');
-const fs = require('fs');
+require('dotenv').config();
+
+/**
+ * Mengimpor modul-modul yang diperlukan dari @whiskeysockets/baileys
+ * @typedef {Object} Baileys
+ * @property {Function} default - Fungsi untuk membuat koneksi ke WhatsApp
+ * @property {Object} DisconnectReason - Objek yang berisi alasan pemutusan koneksi
+ * @property {Function} useMultiFileAuthState - Fungsi untuk menggunakan autentikasi multi-file
+ * @property {Object} Browsers - Objek yang berisi informasi tentang browser
+ * @property {Function} makeInMemoryStore - Fungsi untuk membuat penyimpanan dalam memori
+ * @property {Object} proto - Objek yang berisi protokol WhatsApp
+ * @property {Function} fetchLatestBaileysVersion - Fungsi untuk mengambil versi terbaru Baileys
+ */
+const {
+    default: makeWASocket,
+    DisconnectReason,
+    useMultiFileAuthState,
+    Browsers,
+    makeInMemoryStore,
+    proto,
+    fetchLatestBaileysVersion
+} = require('@whiskeysockets/baileys');
+
+const { Boom } = require('@hapi/boom');
 const chalk = require('chalk');
-const util = require('util');
+const pino = require('pino');
+const axios = require('axios');
+const PhoneNumber = require('awesome-phonenumber');
+
+const color = require('../helpers/color');
+const { smsg } = require('../helpers/smsg');
+const decodeJid = require('../helpers/jidDecoder');
+const handleConnectionUpdate = require('../handlers/handleConnectionUpdate');
+const { decode } = require('punycode');
+const handleMessage = require('../handlers/handleMessage');
+const { getContactName } = require('../helpers/getContactName');
+const { formatPhoneNumber } = require('../helpers/formatPhoneNumber');
+const updateContacts = require('../helpers/updateContacts');
+const handleRejection = require('../handlers/handleRejection');
 
 
-const kalorize = async (client, m, chatUpdate, id) => {
-    try {
-        var body =
-            m.mtype === 'conversation'
-                ? m.message.conversation
-                : m.mtype == 'imageMessage'
-                ? m.message.imageMessage.caption
-                : m.mtype == 'videoMessage'
-                ? m.message.videoMessage.caption
-                : m.mtype == 'extendedTextMessage'
-                ? m.message.extendedTextMessage.text
-                : m.mtype == 'buttonsResponseMessage'
-                ? m.message.buttonsResponseMessage.selectedButtonId
-                : m.mtype == 'listResponseMessage'
-                ? m.message.listResponseMessage.singleSelectReply.selectedRowId
-                : m.mtype == 'templateButtonReplyMessage'
-                ? m.message.templateButtonReplyMessage.selectedId
-                : m.mtype === 'messageContextInfo'
-                ? m.message.buttonsResponseMessage?.selectedButtonId ||
-                  m.message.listResponseMessage?.singleSelectReply.selectedRowId ||
-                  m.text
-                : '';
-        if (m.mtype === 'viewOnceMessageV2') return;
-        var budy = typeof m.text == 'string' ? m.text : '';
-        var prefix = /^[\\/!#.]/gi.test(body) ? body.match(/^[\\/!#.]/gi) : '/';
-        const isCmd2 = body.startsWith(prefix);
-        const command = body.replace(prefix, '').trim().split(/ +/).shift().toLowerCase();
-        const args = body.trim().split(/ +/).slice(1);
-        const pushname = m.pushName || 'No Name';
-        const botNumber = await client.decodeJid(client.user.id);
-        const itsMe = m.sender == botNumber ? true : false;
-        let text = (q = args.join(' '));
-        const arg = budy.trim().substring(budy.indexOf(' ') + 1);
-        const arg1 = arg.trim().substring(arg.indexOf(' ') + 1);
+// Konfigurasi sesi
+const SESSION_NAME = process.env.SESSION_NAME || 'default_session';
 
-        const from = m.chat;
-        const reply = m.reply;
-        const sender = m.sender;
-        const mek = chatUpdate.messages[0];
+// Mendapatkan nilai CLIENT_PUBLIC dari environment variable
+const CLIENT_PUBLIC = process.env.CLIENT_PUBLIC;
 
-        const color = (text, color) => {
-            return !color ? chalk.green(text) : chalk.keyword(color)(text);
-        };
+// Membuat penyimpanan lokal dengan logger yang disederhanakan
+const store = makeInMemoryStore({ logger: pino().child({ level: "silent", stream: "store" }) });
 
-        // Group
-        const groupMetadata = m.isGroup ? await client.groupMetadata(m.chat).catch((e) => {}) : '';
-        const groupName = m.isGroup ? groupMetadata.subject : '';
+// Variabel untuk menyimpan pesan yang disederhanakan
+let simplifiedMsg = "";
 
-        // Push Message To Console
-        let argsLog = budy.length > 30 ? `${q.substring(0, 30)}...` : budy;
+// Variabel untuk menyimpan klien WhatsApp
+let client = "";
 
-        if (isCmd2 && !m.isGroup) {
-            console.log(
-                chalk.black(chalk.bgWhite('[ LOGS ]')),
-                color(argsLog, 'turquoise'),
-                chalk.magenta('From'),
-                chalk.green(pushname),
-                chalk.yellow(`[ ${m.sender.replace('@s.whatsapp.net', '')} ]`)
-            );
-        } else if (isCmd2 && m.isGroup) {
-            console.log(
-                chalk.black(chalk.bgWhite('[ LOGS ]')),
-                color(argsLog, 'turquoise'),
-                chalk.magenta('From'),
-                chalk.green(pushname),
-                chalk.yellow(`[ ${m.sender.replace('@s.whatsapp.net', '')} ]`),
-                chalk.blueBright('IN'),
-                chalk.green(groupName)
-            );
+
+/**
+ * Fungsi untuk menghubungkan ke WhatsApp
+ * @returns {Promise<Object>} - Objek klien WhatsApp
+ */
+async function connectToWhatsApp() {
+    // Mendapatkan state autentikasi dan fungsi untuk menyimpan kredensial
+    const { state, saveCreds } = await useMultiFileAuthState(`./${SESSION_NAME}`);
+
+    // Membuat koneksi ke WhatsApp
+    client = makeWASocket({
+        logger: pino({ level: "silent" }),
+        printQRInTerminal: true,
+        browser: Browsers.macOS('Desktop'),
+        auth: state,
+    });
+
+    // Mengikat penyimpanan lokal ke event klien
+    store.bind(client.ev);
+
+    // Menambahkan fungsi decodeJid ke klien
+    client.decodeJid = decodeJid;
+
+    // Menangani pesan baru yang diterima
+    client.ev.on('messages.upsert', handleNewMessages);
+
+    /**
+     * Menangani pesan baru yang diterima oleh klien
+     * @param {Object} update - Objek pembaruan pesan
+     */
+    async function handleNewMessages(update) {
+        console.log(JSON.stringify(update, undefined, 2));
+        try {
+            const message = update.messages[0];
+
+            // Mengabaikan pesan tanpa konten, pembaruan status, dan pesan sementara
+            if (!message.message || message.key?.remoteJid === "status@broadcast" || message.key?.id?.startsWith("BAE5") && message.key.id.length === 16) return;
+
+            // Menangani pesan sementara
+            message.message = message.message.ephemeralMessage?.message || message.message;
+
+            // Mengabaikan pesan dari pengguna lain jika tidak dalam mode publik
+            if (!CLIENT_PUBLIC && !message.key.fromMe && update.type === "notify") return;
+
+            // Menyederhanakan pesan
+            simplifiedMsg = smsg(client, message, store);
+
+            await handleMessage(client, simplifiedMsg, store);
+
+
+            //  ========= UNDER CONSTRUCTION BY REZKY BUT THIS SHIT DOING WELL THO ========
+
+            // console.log(update)
+
+            // client.sendMessage("6285770327304@s.whatsapp.net", { text: 'Hello there!' })
+
+            // const buttons = [
+            //     { buttonId: "id1", buttonText: { displayText: 'Template 🪄' } },
+            //     { buttonId: "id2", buttonText: { displayText: 'Generate Recommendation 👾' } },
+            //     { buttonId: "id3", buttonText: { displayText: 'Update Data 🧙' } }
+            // ]
+
+            // const buttonInfo = {
+            //     text: "Kalorize Official",
+            //     buttons: buttons,
+            //     viewOnce: true,
+            //     headerType: 1
+            // }
+
+            // // if "fromMe" is false, then send the button message otherwise ignore
+            // if (!message.key.fromMe) {
+            //     // If someone send /poll command, then send a poll message
+            //     if (simplifiedMsg.body === "/poll") {
+            //         console.log(update.messages[0].key.remoteJid)
+            //         await client.sendMessage(update.messages[0].key.remoteJid, {
+            //             poll: {
+            //                 name: "Kalorize Official",
+            //                 values: ["Rekomendasi", "Template Excel", "Update Dataset"]
+            //                 selectableCount: 1
+            //                 multiselect: false
+            //             }
+            //         });
+
+            //         // if user click the poll Rekomendasi then send text answer "waiting recomendation"
+            //         if (simplifiedMsg.body === "Rekomendasi") {
+            //             await client.sendMessage(update.messages[0].key.remoteJid, { text: "Waiting for recommendation" });
+            //         }
+            //     }
+            //     // await client.sendMessage(update.messages[0].key.remoteJid, { poll: { name: "pollName", values: ["option1", "option2", "option3"] } });
+            // }
+
+
+
+        } catch (err) {
+            console.error('Error handling new message:', err);
         }
-
-        if (isCmd2) {
-            switch (id) {
-                case '1': {
-                    await getRecommendationFood(client, m, chatUpdate, id);
-                    await sendMenu(client, m.key.remoteJid);
-                    break;
-                }
-                case '2': {
-                    client.sendMessage(m.chat, 'Anda memilih Upload Data CSV.');
-                    await uploadCsv(client, m, chatUpdate, id);
-                    if (isCmd2 && budy.toLowerCase() != undefined) {
-                        if (m.chat.endsWith('broadcast')) return;
-                        if (m.isBaileys) return;
-                        if (!budy.toLowerCase()) return;
-                        if (argsLog || (isCmd2 && !m.isGroup)) {
-                            console.log(
-                                chalk.black(chalk.bgRed('[ ERROR ]')),
-                                color('command', 'turquoise'),
-                                color(`${prefix}${command}`, 'turquoise'),
-                                color('tidak tersedia', 'turquoise')
-                            );
-                        } else if (argsLog || (isCmd2 && m.isGroup)) {
-                            console.log(
-                                chalk.black(chalk.bgRed('[ ERROR ]')),
-                                color('command', 'turquoise'),
-                                color(`${prefix}${command}`, 'turquoise'),
-                                color('tidak tersedia', 'turquoise')
-                            );
-                        }
-                    }
-                    await sendMenu(client, m.key.remoteJid);
-
-                    break;
-                }
-                case '3': {
-                    client.sendMessage(m.chat, 'Anda memilih Minta data template CSV.');
-                    await downloadCsvTemplate(client, m, chatUpdate, id);
-                    if (isCmd2 && budy.toLowerCase() != undefined) {
-                        if (m.chat.endsWith('broadcast')) return;
-                        if (m.isBaileys) return;
-                        if (!budy.toLowerCase()) return;
-                        if (argsLog || (isCmd2 && !m.isGroup)) {
-                            console.log(
-                                chalk.black(chalk.bgRed('[ ERROR ]')),
-                                color('command', 'turquoise'),
-                                color(`${prefix}${command}`, 'turquoise'),
-                                color('tidak tersedia', 'turquoise')
-                            );
-                        } else if (argsLog || (isCmd2 && m.isGroup)) {
-                            console.log(
-                                chalk.black(chalk.bgRed('[ ERROR ]')),
-                                color('command', 'turquoise'),
-                                color(`${prefix}${command}`, 'turquoise'),
-                                color('tidak tersedia', 'turquoise')
-                            );
-                        }
-                    }
-                    await sendMenu(client, m.key.remoteJid);
-
-                    break;
-                }
-
-                default: {
-                    console.log(`Unknown command: ${command}. Sending menu button.`);
-                    await sendMenu(client, m.key.remoteJid);
-                    break;
-                }
-            }
-        }
-    } catch (err) {
-        m.reply(util.format(err));
     }
-};
 
-module.exports = kalorize;
+    // Menangani error
+    handleRejection(client);
 
-let file = require.resolve(__filename);
-fs.watchFile(file, () => {
-    fs.unwatchFile(file);
-    console.log(chalk.redBright(`Update ${__filename}`));
-    delete require.cache[file];
-    require(file);
-});
+    // Memperbarui kontak saat terjadi pembaruan
+    client.ev.on("contacts.update", (update) => updateContacts(client, store, update));
+
+    // Menambahkan fungsi serializeM ke klien
+    client.serializeM = (message) => smsg(client, message, store);
+
+    // Menangani pembaruan koneksi
+    client.ev.on('connection.update', handleConnectionUpdate(client, connectToWhatsApp));
+
+    // Menyimpan kredensial saat terjadi pembaruan
+    client.ev.on('creds.update', saveCreds);
+
+    /**
+     * Mengirim pesan teks
+     * @param {string} jid - ID penerima
+     * @param {string} text - Teks pesan
+     * @param {string} [quoted=""] - Pesan yang dikutip
+     * @param {Object} [options={}] - Opsi pesan
+     */
+    client.sendText = (jid, text, quoted = "", options) => client.sendMessage(jid, { text: text, ...options }, { quoted });
+
+    return client;
+}
+
+module.exports = connectToWhatsApp;
