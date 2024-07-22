@@ -2,12 +2,10 @@ const chalk = require('chalk');
 const util = require('util');
 const color = require('../helpers/color');
 const getMessageBody = require('../helpers/getMessageBody');
+const { requestFileUpload, handleFileUpload } = require('../services/uploadXlsx');
 
-/**
- * Handles a simplified message object.
- * @param {Object} client - The WhatsApp client instance.
- * @param {Object} simplifiedMsg - The simplified message object.
- */
+const uploadStates = {}; // In-memory state to track file upload status
+
 async function handleMessage(client, simplifiedMsg) {
     try {
         if (simplifiedMsg.mtype === "viewOnceMessageV2") return;
@@ -15,10 +13,11 @@ async function handleMessage(client, simplifiedMsg) {
         const { body, prefix, isCmd, command, args } = parseMessageContent(simplifiedMsg);
         const { pushname, sender, isGroup, groupMetadata, groupName } = await getMessageContext(client, simplifiedMsg);
 
-        // Log the received command
         logReceivedCommand(isCmd, isGroup, sender, pushname, groupName, body);
+        const { message, key, id } = simplifiedMsg;
+        const messageType = Object.keys(message)[0];
 
-        // Handle the command
+        console.log('Message object:', JSON.stringify(simplifiedMsg, null, 2));
         if (isCmd) {
             switch (command) {
                 case "help":
@@ -27,20 +26,31 @@ async function handleMessage(client, simplifiedMsg) {
                 case "info":
                     await replyWithMenu(client, simplifiedMsg, prefix);
                     break;
+                case "upload":
+                    uploadStates[sender] = true;
+                    await requestFileUpload(client, simplifiedMsg);
+                    break;
                 default:
                     await handleUnknownCommand(simplifiedMsg, isGroup, sender, prefix, command);
             }
+        } else if (simplifiedMsg.message) {
+            // Log for debugging
+            // console.log('Message object:', simplifiedMsg.message);s
+
+            if (uploadStates[sender] && simplifiedMsg.message) {
+                // Handle file upload if the user is expected to upload a file
+                delete uploadStates[sender]; // Clear the state after receiving the file // Logging
+                await handleFileUpload(client, simplifiedMsg);
+            } else {
+                console.log('Non-command message detected.'); // Logging
+            }
         }
     } catch (err) {
+        console.error('Error in handleMessage:', err); // Logging error
         await simplifiedMsg.reply(util.format(err));
     }
 }
 
-/**
- * Parses the message content and extracts relevant information.
- * @param {Object} simplifiedMsg - The simplified message object.
- * @returns {Object} An object containing the parsed message content.
- */
 function parseMessageContent(simplifiedMsg) {
     const body = getMessageBody(simplifiedMsg);
     const prefix = /^[\\/!#.]/gi.test(body) ? body.match(/^[\\/!#.]/gi)[0] : "/";
@@ -51,12 +61,6 @@ function parseMessageContent(simplifiedMsg) {
     return { body, prefix, isCmd, command, args };
 }
 
-/**
- * Retrieves the message context information.
- * @param {Object} client - The WhatsApp client instance.
- * @param {Object} simplifiedMsg - The simplified message object.
- * @returns {Promise<Object>} A promise resolving to an object containing the message context information.
- */
 async function getMessageContext(client, simplifiedMsg) {
     const pushname = simplifiedMsg.pushName || "No Name";
     const sender = simplifiedMsg.sender;
@@ -67,15 +71,6 @@ async function getMessageContext(client, simplifiedMsg) {
     return { pushname, sender, isGroup, groupMetadata, groupName };
 }
 
-/**
- * Logs the received command information.
- * @param {boolean} isCmd - Indicates if the message is a command.
- * @param {boolean} isGroup - Indicates if the message is from a group.
- * @param {string} sender - The sender's ID.
- * @param {string} pushname - The sender's push name.
- * @param {string} groupName - The group name (if applicable).
- * @param {string} body - The message body.
- */
 function logReceivedCommand(isCmd, isGroup, sender, pushname, groupName, body) {
     if (!isCmd) return;
 
@@ -103,27 +98,25 @@ function logReceivedCommand(isCmd, isGroup, sender, pushname, groupName, body) {
     }
 }
 
-/**
- * Replies with the menu message.
- * @param {Object} simplifiedMsg - The simplified message object.
- * @param {string} prefix - The command prefix.
- * @returns {Promise<void>} A promise that resolves when the menu is sent.
- */
 async function replyWithMenu(client, simplifiedMsg, prefix) {
-    const menuMessage = `Kalorize 👾`;
-    await simplifiedMsg.reply(menuMessage);
+    const buttons = [
+        { buttonId: "id1", buttonText: { displayText: 'Template 🪄' } },
+        { buttonId: "id2", buttonText: { displayText: 'Generate Recommendation 👾' } },
+        { buttonId: "id3", buttonText: { displayText: 'Update Data 🧙' } }
+    ];
+
+    const buttonInfo = {
+        text: "Kalorize Official",
+        buttons: buttons,
+        viewOnce: true,
+        headerType: 1
+    };
+
+    await client.sendMessage(simplifiedMsg.key.remoteJid, buttonInfo);
 }
 
-/**
- * Handles unknown commands.
- * @param {Object} simplifiedMsg - The simplified message object.
- * @param {boolean} isGroup - Indicates if the message is from a group.
- * @param {string} sender - The sender's ID.
- * @param {string} prefix - The command prefix.
- * @param {string} command - The unknown command.
- * @returns {Promise<void>} A promise that resolves when the unknown command is handled.
- */
 async function handleUnknownCommand(simplifiedMsg, isGroup, sender, prefix, command) {
+    const body = getMessageBody(simplifiedMsg);
     if (simplifiedMsg.isBaileys || !body.toLowerCase() || simplifiedMsg.chat.endsWith("broadcast")) {
         return;
     }

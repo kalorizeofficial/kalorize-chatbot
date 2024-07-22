@@ -38,7 +38,6 @@ const { formatPhoneNumber } = require('../helpers/formatPhoneNumber');
 const updateContacts = require('../helpers/updateContacts');
 const handleRejection = require('../handlers/handleRejection');
 
-
 // Konfigurasi sesi
 const SESSION_NAME = process.env.SESSION_NAME || 'default_session';
 
@@ -53,7 +52,6 @@ let simplifiedMsg = "";
 
 // Variabel untuk menyimpan klien WhatsApp
 let client = "";
-
 
 /**
  * Fungsi untuk menghubungkan ke WhatsApp
@@ -85,7 +83,6 @@ async function connectToWhatsApp() {
      * @param {Object} update - Objek pembaruan pesan
      */
     async function handleNewMessages(update) {
-        console.log(JSON.stringify(update, undefined, 2));
         try {
             const message = update.messages[0];
 
@@ -101,51 +98,10 @@ async function connectToWhatsApp() {
             // Menyederhanakan pesan
             simplifiedMsg = smsg(client, message, store);
 
+            // Log for debugging
+            console.log('Simplified message:', JSON.stringify(simplifiedMsg, null, 2));
+
             await handleMessage(client, simplifiedMsg, store);
-
-
-            //  ========= UNDER CONSTRUCTION BY REZKY BUT THIS SHIT DOING WELL THO ========
-
-            // console.log(update)
-
-            // client.sendMessage("6285770327304@s.whatsapp.net", { text: 'Hello there!' })
-
-            // const buttons = [
-            //     { buttonId: "id1", buttonText: { displayText: 'Template 🪄' } },
-            //     { buttonId: "id2", buttonText: { displayText: 'Generate Recommendation 👾' } },
-            //     { buttonId: "id3", buttonText: { displayText: 'Update Data 🧙' } }
-            // ]
-
-            // const buttonInfo = {
-            //     text: "Kalorize Official",
-            //     buttons: buttons,
-            //     viewOnce: true,
-            //     headerType: 1
-            // }
-
-            // // if "fromMe" is false, then send the button message otherwise ignore
-            // if (!message.key.fromMe) {
-            //     // If someone send /poll command, then send a poll message
-            //     if (simplifiedMsg.body === "/poll") {
-            //         console.log(update.messages[0].key.remoteJid)
-            //         await client.sendMessage(update.messages[0].key.remoteJid, {
-            //             poll: {
-            //                 name: "Kalorize Official",
-            //                 values: ["Rekomendasi", "Template Excel", "Update Dataset"]
-            //                 selectableCount: 1
-            //                 multiselect: false
-            //             }
-            //         });
-
-            //         // if user click the poll Rekomendasi then send text answer "waiting recomendation"
-            //         if (simplifiedMsg.body === "Rekomendasi") {
-            //             await client.sendMessage(update.messages[0].key.remoteJid, { text: "Waiting for recommendation" });
-            //         }
-            //     }
-            //     // await client.sendMessage(update.messages[0].key.remoteJid, { poll: { name: "pollName", values: ["option1", "option2", "option3"] } });
-            // }
-
-
 
         } catch (err) {
             console.error('Error handling new message:', err);
