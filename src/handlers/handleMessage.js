@@ -17,7 +17,7 @@ async function handleMessage(client, simplifiedMsg) {
         const { message, key, id } = simplifiedMsg;
         const messageType = Object.keys(message)[0];
 
-        console.log('Message object:', JSON.stringify(simplifiedMsg, null, 2));
+        // console.log('Message object:', JSON.stringify(simplifiedMsg, null, 2));
         if (isCmd) {
             switch (command) {
                 case "help":

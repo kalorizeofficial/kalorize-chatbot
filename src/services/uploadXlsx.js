@@ -60,10 +60,15 @@ async function handleFileUpload(client, simplifiedMsg) {
 
             await client.sendMessage(simplifiedMsg.key.remoteJid, { text: `File has been processed and saved as ${jsonFileName}` });
 
+            await client.sendMessage(simplifiedMsg.key.remoteJid, {
+                document: { url: jsonFilePath },
+                fileName: jsonFileName,
+                mimetype: 'application/json'
+            });
+
             fs.unlinkSync(filePath);
 
-
-            //buat convert to pdf sesuaikan aja
+            // Optional: Convert JSON to PDF and send to user
             await jsonToPdf(jsonFilePath, simplifiedMsg.key.remoteJid, client);
         });
     } catch (error) {

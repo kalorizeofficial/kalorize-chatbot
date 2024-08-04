@@ -99,7 +99,7 @@ async function connectToWhatsApp() {
             simplifiedMsg = smsg(client, message, store);
 
             // Log for debugging
-            console.log('Simplified message:', JSON.stringify(simplifiedMsg, null, 2));
+            // console.log('Simplified message:', JSON.stringify(simplifiedMsg, null, 2));
 
             await handleMessage(client, simplifiedMsg, store);
 
